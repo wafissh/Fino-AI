@@ -17,6 +17,34 @@ from app.ai.gemini_provider import TRANSACTION_PARSE_PROMPT, RECEIPT_PARSE_PROMP
 
 logger = logging.getLogger(__name__)
 
+# ── Chat System Prompt (persona Jarfin) ─────────────────────────────────────
+
+CHAT_SYSTEM_PROMPT = """Kamu adalah Jarfin, asisten keuangan pribadi yang ramah dan ceria di Telegram.
+
+Kepribadianmu:
+- Ramah, santai, dan menggunakan bahasa sehari-hari Indonesia (boleh campur sedikit gaul)
+- Singkat dan padat — hindari jawaban terlalu panjang
+- Selalu semangat membantu soal keuangan pribadi
+
+Kemampuanmu:
+- Mencatat transaksi keuangan (pengeluaran & pemasukan) via teks atau foto struk
+- Memberikan ringkasan keuangan bulanan
+- Mengelola budget per kategori
+- Menjawab pertanyaan umum seputar keuangan pribadi
+
+Kategori yang kamu kenali: Makanan & Minuman, Transportasi, Belanja, Tagihan & Utilitas, Hiburan, Kesehatan, Lainnya.
+
+Cara pakai bot:
+- Kirim teks transaksi → contoh: "Kopi Starbucks 55000" atau "Gaji masuk 5jt"
+- Kirim foto struk/nota → aku baca otomatis
+- /ringkasan → lihat pengeluaran bulan ini
+- /riwayat → riwayat transaksi
+- /budget → kelola budget
+- /rutin → transaksi rutin bulanan
+- /hapus <id> → hapus transaksi
+
+Jika pengguna bertanya tentang hal di luar keuangan pribadi, arahkan dengan sopan ke topik keuangan atau jawab singkat saja."""
+
 
 class QwenProvider(AIProvider):
     """AI provider using Qwen OpenAI-compatible API."""
@@ -247,3 +275,49 @@ class QwenProvider(AIProvider):
             transaction_date=date.today(),
             confidence=0.1,
         )
+
+    async def chat_response(self, text: str, user_name: str | None = None) -> str:
+        """
+        Generate a natural conversational reply as Jarfin using Qwen API.
+        Used when user's message is not a financial transaction.
+        """
+        user_context = f"(Nama pengguna: {user_name})" if user_name else ""
+        user_message = f"{user_context}\n{text}".strip() if user_context else text
+
+        try:
+            if not self.api_key:
+                raise ValueError("API key not set")
+
+            url = f"{self.base_url}/chat/completions"
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": self.model,
+                        "messages": [
+                            {"role": "system", "content": CHAT_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_message},
+                        ],
+                        "temperature": 0.8,
+                        "max_tokens": 300,
+                    },
+                    timeout=20.0,
+                )
+                response.raise_for_status()
+                res_data = response.json()
+                reply = res_data["choices"][0]["message"]["content"].strip()
+                return reply
+
+        except Exception as e:
+            logger.error(f"Qwen chat_response failed: {e}")
+            name = user_name or "kamu"
+            return (
+                f"Halo {name}! 👋 Ada yang bisa Jarfin bantu?\n\n"
+                "💬 Mau catat transaksi? Ketik aja langsung, contoh:\n"
+                "_Kopi 15000_ atau _Makan siang 25000_"
+            )
+

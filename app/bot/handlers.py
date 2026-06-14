@@ -288,7 +288,9 @@ async def rutin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 # ── Message Handlers ────────────────────────────────────────────────────────
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle text messages — parse as transaction input with confirmation flow."""
+    """Handle text messages — parse as transaction input with confirmation flow.
+    If the message is not a transaction (low confidence), respond conversationally.
+    """
     user = update.effective_user
     message = update.message
     if not user or not message or not message.text:
@@ -312,14 +314,24 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         await _handle_recurring_description_input(update, context, text)
         return
 
-    # Send "processing" indicator
+    # Send "typing" indicator
     await message.reply_chat_action("typing")
 
     try:
-        # Parse WITHOUT saving (confirmation flow)
+        # Parse WITHOUT saving (confidence check first)
         result = await _transaction_service.parse_only(text)
 
-        # Generate a temporary ID for this pending transaction
+        # ── Confidence threshold: if < 0.3, treat as casual conversation ──
+        # This catches greetings, questions, or unrelated messages.
+        if result["confidence"] < 0.3:
+            reply = await _ai_provider.chat_response(
+                text=text,
+                user_name=user.first_name or user.username,
+            )
+            await message.reply_text(reply, parse_mode="Markdown")
+            return
+
+        # ── High enough confidence → show transaction preview ──
         pending_id = str(uuid.uuid4())[:8]
 
         # Store in user_data for later confirmation
@@ -364,6 +376,8 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             "❌ Maaf, terjadi kesalahan saat memproses pesan kamu.\n"
             "Coba lagi atau ketik /help untuk bantuan."
         )
+
+
 
 
 async def handle_photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

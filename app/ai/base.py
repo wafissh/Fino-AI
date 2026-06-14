@@ -86,3 +86,29 @@ class AIProvider(ABC):
             List of ParsedTransaction objects.
         """
         raise NotImplementedError("Direct image parsing is not supported by this provider")
+
+    async def chat_response(self, text: str, user_name: str | None = None) -> str:
+        """
+        Generate a casual conversational reply when the user's message
+        is not a financial transaction (e.g., greetings, questions about the bot).
+
+        Providers may override this to use the AI model for natural replies.
+        Default: returns a friendly fallback message.
+
+        Args:
+            text: The user's message.
+            user_name: Optional display name of the user.
+
+        Returns:
+            A string reply to send back to the user.
+        """
+        name = user_name or "kamu"
+        return (
+            f"Halo {name}! 👋 Ada yang bisa Jarfin bantu?\n\n"
+            "💬 Kamu bisa:\n"
+            "• Catat transaksi — _Kopi 15000_\n"
+            "• Kirim foto struk\n"
+            "• Ketik /ringkasan, /riwayat, /budget\n"
+            "• Atau tanya apapun seputar keuanganmu 😊"
+        )
+
