@@ -56,9 +56,15 @@ telegram_app: Application | None = None
 
 def create_telegram_app() -> Application:
     """Create and configure the Telegram bot application."""
+    from telegram.request import HTTPXRequest
+    
+    # Increase timeouts to handle slow/unstable network connections
+    request = HTTPXRequest(connect_timeout=20.0, read_timeout=20.0)
+    
     app = (
         Application.builder()
         .token(settings.telegram_bot_token)
+        .request(request)
         .build()
     )
 
@@ -107,6 +113,29 @@ async def _recurring_job_loop():
         await asyncio.sleep(3600)
 
 
+# ── Background Job: Send Daily Reminders and Weekly Summaries ────────────────
+
+async def _notification_job_loop():
+    """
+    Background loop that checks and sends daily reminders and weekly summaries
+    every hour.
+    """
+    from app.services.notification_service import NotificationService
+    notification_service = NotificationService()
+
+    while True:
+        try:
+            if telegram_app and telegram_app.bot:
+                logger.info("Checking daily reminders and weekly summaries...")
+                await notification_service.send_daily_reminders(telegram_app.bot)
+                await notification_service.send_weekly_summaries(telegram_app.bot)
+        except Exception as e:
+            logger.error(f"❌ Notification job error: {e}", exc_info=True)
+
+        # Check every hour
+        await asyncio.sleep(3600)
+
+
 # ── FastAPI Lifespan ────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -128,37 +157,51 @@ async def lifespan(app: FastAPI):
     recurring_task = asyncio.create_task(_recurring_job_loop())
     logger.info("🔄 Recurring transaction job started")
 
-    if settings.bot_mode == "polling":
-        # Polling mode for development
-        logger.info("🔄 Starting bot in POLLING mode...")
-        await telegram_app.initialize()
-        await telegram_app.start()
-        await telegram_app.updater.start_polling(drop_pending_updates=True)
-        logger.info("✅ Bot is running in polling mode")
-    else:
-        # Webhook mode for production
-        webhook_url = f"{settings.webhook_url}/webhook"
-        logger.info(f"🌐 Setting webhook to: {webhook_url}")
-        await telegram_app.initialize()
-        await telegram_app.start()
-        await telegram_app.bot.set_webhook(url=webhook_url)
-        logger.info("✅ Webhook set")
+    # Start notification job in background
+    notification_task = asyncio.create_task(_notification_job_loop())
+    logger.info("🔄 Notification job started")
+
+    bot_started_successfully = False
+    try:
+        if settings.bot_mode == "polling":
+            # Polling mode for development
+            logger.info("🔄 Starting bot in POLLING mode...")
+            await telegram_app.initialize()
+            await telegram_app.start()
+            await telegram_app.updater.start_polling(drop_pending_updates=True)
+            logger.info("✅ Bot is running in polling mode")
+        else:
+            # Webhook mode for production
+            webhook_url = f"{settings.webhook_url}/webhook"
+            logger.info(f"🌐 Setting webhook to: {webhook_url}")
+            await telegram_app.initialize()
+            await telegram_app.start()
+            await telegram_app.bot.set_webhook(url=webhook_url)
+            logger.info("✅ Webhook set")
+        bot_started_successfully = True
+    except Exception as e:
+        logger.error(f"❌ Failed to start Telegram bot (possibly due to connection timeout): {e}", exc_info=True)
+        logger.warning("⚠️ FastAPI will run, but the Telegram bot will NOT be active.")
 
     yield
 
     # Shutdown
     logger.info("🛑 Shutting down Jarfin...")
     recurring_task.cancel()
+    notification_task.cancel()
     try:
-        await recurring_task
-    except asyncio.CancelledError:
+        await asyncio.gather(recurring_task, notification_task, return_exceptions=True)
+    except Exception:
         pass
 
-    if telegram_app:
-        if settings.bot_mode == "polling" and telegram_app.updater:
-            await telegram_app.updater.stop()
-        await telegram_app.stop()
-        await telegram_app.shutdown()
+    if telegram_app and bot_started_successfully:
+        try:
+            if settings.bot_mode == "polling" and telegram_app.updater:
+                await telegram_app.updater.stop()
+            await telegram_app.stop()
+            await telegram_app.shutdown()
+        except Exception as e:
+            logger.error(f"❌ Error during Telegram bot shutdown: {e}", exc_info=True)
     await close_db()
     logger.info("👋 Goodbye!")
 

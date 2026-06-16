@@ -39,6 +39,7 @@ from app.bot.keyboards import (
 )
 from app.config import get_settings
 from app.ai.parser import TransactionParser
+from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ _transaction_service = TransactionService(parser=_parser)
 _budget_service = BudgetService()
 _ocr_service = OCRService()
 _recurring_service = RecurringService()
+_notification_service = NotificationService()
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -329,7 +331,10 @@ async def konsul_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     # Send typing action
-    await message.reply_chat_action("typing")
+    try:
+        await message.reply_chat_action("typing")
+    except Exception as e:
+        logger.warning(f"Failed to send typing indicator: {e}")
 
     try:
         # Generate conversational reply as Jarfin using heavy reasoning model
@@ -493,7 +498,10 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     # Send "typing" indicator
-    await message.reply_chat_action("typing")
+    try:
+        await message.reply_chat_action("typing")
+    except Exception as e:
+        logger.warning(f"Failed to send typing indicator: {e}")
 
     # ── Fast path: heuristic pre-filter ────────────────────────────────────
     # If the message clearly doesn't look like a transaction (no digits, no
@@ -586,7 +594,10 @@ async def handle_photo_message(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     # Send "processing" indicator
-    await message.reply_chat_action("typing")
+    try:
+        await message.reply_chat_action("typing")
+    except Exception as e:
+        logger.warning(f"Failed to send typing indicator: {e}")
 
     try:
         # Get the largest photo (last in the array)
@@ -644,6 +655,9 @@ async def handle_photo_message(update: Update, context: ContextTypes.DEFAULT_TYP
         lines.append(f"\n💰 *Total: {_format_currency(total)}*")
 
         await message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+        # Check for spending anomaly and trigger alert if necessary
+        await _notification_service.check_spending_anomaly(str(user.id), context.bot)
 
     except Exception as e:
         logger.error(f"Error processing photo message: {e}", exc_info=True)
@@ -917,6 +931,9 @@ async def _handle_confirm_callback(query, context, platform_id: str, pending_id:
             )
 
     await query.message.edit_text(confirm_text, parse_mode="Markdown")
+
+    # Check for spending anomaly and trigger alert if necessary
+    await _notification_service.check_spending_anomaly(platform_id, context.bot)
 
 
 async def _handle_cancel_callback(query, context, pending_id: str) -> None:

@@ -50,6 +50,9 @@ class User(Base):
     currency: Mapped[str] = mapped_column(String, nullable=False, default="IDR")
     timezone: Mapped[str] = mapped_column(String, nullable=False, default="Asia/Jakarta")
     plan: Mapped[str] = mapped_column(String, nullable=False, default="free")
+    last_reminder_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    last_weekly_report_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    last_anomaly_alert_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )

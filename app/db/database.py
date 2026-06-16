@@ -67,6 +67,16 @@ async def init_db() -> None:
                 except Exception as ex:
                     print(f"Error altering table transactions: {ex}")
 
+            # Check if notification tracking columns exist in users table, if not add them
+            for col in ["last_reminder_date", "last_weekly_report_date", "last_anomaly_alert_date"]:
+                try:
+                    cursor.execute(f"SELECT {col} FROM users LIMIT 1")
+                except Exception:
+                    try:
+                        cursor.execute(f"ALTER TABLE users ADD COLUMN {col} DATE")
+                    except Exception as ex:
+                        print(f"Error altering table users to add {col}: {ex}")
+
         await conn.run_sync(add_column_if_not_exists)
 
 
