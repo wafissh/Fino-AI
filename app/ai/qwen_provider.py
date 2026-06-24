@@ -17,9 +17,9 @@ from app.ai.gemini_provider import TRANSACTION_PARSE_PROMPT, RECEIPT_PARSE_PROMP
 
 logger = logging.getLogger(__name__)
 
-# ── Chat System Prompt (persona Jarfin) ─────────────────────────────────────
+# ── Chat System Prompt (persona Fino AI) ─────────────────────────────────────
 
-CHAT_SYSTEM_PROMPT = """Kamu adalah Jarfin, asisten keuangan pribadi yang ramah dan ceria di Telegram.
+CHAT_SYSTEM_PROMPT = """Kamu adalah Fino AI, asisten keuangan pribadi yang ramah dan ceria di Telegram.
 
 Kepribadianmu:
 - Ramah, santai, dan menggunakan bahasa sehari-hari Indonesia (boleh campur sedikit gaul)
