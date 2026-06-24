@@ -1,4 +1,4 @@
-# Jarfin 🤖💰
+# Fino 🤖💰
 
 Telegram bot pencatat keuangan otomatis dengan AI.
 
