@@ -7,7 +7,7 @@ Telegram bot pencatat keuangan otomatis dengan AI.
 - 💬 **Catat via teks** — Kirim pesan seperti "Makan siang 25000" dan bot akan mencatat otomatis
 - 📷 **Catat via foto** — Kirim foto struk/nota dan bot akan membaca dengan OCR + AI
 - 📊 **Ringkasan** — Lihat ringkasan pengeluaran per kategori per bulan
-- 🤖 **AI Parsing** — Gemini AI untuk mengekstrak informasi transaksi secara cerdas
+- 🤖 **AI Parsing** — AI untuk mengekstrak informasi transaksi secara cerdas
 - 🔄 **Multi-platform** — Desain siap untuk Telegram & WhatsApp
 
 ## Tech Stack
